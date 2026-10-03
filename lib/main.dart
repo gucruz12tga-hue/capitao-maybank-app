@@ -219,7 +219,10 @@ class _ChatPageState extends State<ChatPage> {
           ? _historico.sublist(_historico.length - 30)
           : _historico,
     };
-    final lista = _modeloOk != null ? [_modeloOk!] : _modelos;
+    final lista = [
+      if (_modeloOk != null) _modeloOk!,
+      ..._modelos.where((m) => m != _modeloOk),
+    ];
     int ultimoCodigo = 0;
     String ultimoErro = '';
     try {
@@ -260,7 +263,12 @@ class _ChatPageState extends State<ChatPage> {
         } catch (_) {}
         ultimoCodigo = r.statusCode;
         ultimoErro = 'Erro ${r.statusCode} (modelo $modelo): $detalhe';
-        if (r.statusCode == 404) continue; // tenta o próximo modelo
+        if (r.statusCode == 404 ||
+            r.statusCode == 429 ||
+            r.statusCode == 500 ||
+            r.statusCode == 503) {
+          continue; // tenta o próximo modelo
+        }
         break;
       }
       _historico.removeLast();
