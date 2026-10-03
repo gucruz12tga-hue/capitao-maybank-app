@@ -1,0 +1,26 @@
+workflows:
+  capitao-android:
+    name: CAPITAO_MAYBANK Android APK
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+    scripts:
+      - name: Gerar pastas do Android (so se faltarem)
+        script: |
+          if [ ! -d android ]; then
+            flutter create --platforms=android --project-name capitao_maybank --org com.maybank .
+          fi
+      - name: Permissoes (internet e microfone)
+        script: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          if ! grep -q "RECORD_AUDIO" "$MANIFEST"; then
+            sed -i.bak 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application|' "$MANIFEST"
+            sed -i.bak 's|</manifest>|    <queries>\n        <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>\n        <intent><action android:name="android.speech.RecognitionService"/></intent>\n    </queries>\n</manifest>|' "$MANIFEST"
+          fi
+      - name: Dependencias
+        script: flutter pub get
+      - name: Compilar APK
+        script: flutter build apk --release
+    artifacts:
+      - build/**/outputs/**/*.apk
