@@ -73,7 +73,15 @@ class _ChatPageState extends State<ChatPage> {
   bool _pensando = false;
   double _tom = 0.6; // tom grave = voz masculina
 
-  static const _modelo = 'gemini-2.5-flash';
+  static const _modelos = [
+    'gemini-flash-latest',
+    'gemini-3.8-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.5-flash',
+    'gemini-3-flash-preview',
+    'gemini-2.5-flash',
+  ];
+  String? _modeloOk;
 
   @override
   void initState() {
@@ -211,37 +219,59 @@ class _ChatPageState extends State<ChatPage> {
           ? _historico.sublist(_historico.length - 30)
           : _historico,
     };
+    final lista = _modeloOk != null ? [_modeloOk!] : _modelos;
+    int ultimoCodigo = 0;
+    String ultimoErro = '';
     try {
-      final r = await http
-          .post(
-            Uri.parse(
-                'https://generativelanguage.googleapis.com/v1beta/models/$_modelo:generateContent'),
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': _apiKey,
-            },
-            body: jsonEncode(corpo),
-          )
-          .timeout(const Duration(seconds: 40));
-      if (r.statusCode != 200) {
-        _historico.removeLast();
-        if (r.statusCode == 429) {
-          return 'Muitas perguntas seguidas (limite grátis). Espere um minutinho e tente de novo.';
+      for (final modelo in lista) {
+        final r = await http
+            .post(
+              Uri.parse(
+                  'https://generativelanguage.googleapis.com/v1beta/models/$modelo:generateContent'),
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': _apiKey,
+              },
+              body: jsonEncode(corpo),
+            )
+            .timeout(const Duration(seconds: 40));
+        if (r.statusCode == 200) {
+          try {
+            final j = jsonDecode(utf8.decode(r.bodyBytes));
+            final resp =
+                j['candidates'][0]['content']['parts'][0]['text'] as String;
+            _modeloOk = modelo;
+            _historico.add({
+              'role': 'model',
+              'parts': [
+                {'text': resp}
+              ]
+            });
+            return resp.trim();
+          } catch (_) {
+            _historico.removeLast();
+            return 'O Gemini não conseguiu responder a isso. Tente falar de outro jeito.';
+          }
         }
-        if (r.statusCode == 400 || r.statusCode == 403) {
-          return 'Sua chave do Gemini parece inválida. Confira na engrenagem ⚙️.';
-        }
-        return 'Erro ${r.statusCode} ao falar com o Gemini.';
+        String detalhe = '';
+        try {
+          detalhe = jsonDecode(utf8.decode(r.bodyBytes))['error']['message']
+              .toString();
+        } catch (_) {}
+        ultimoCodigo = r.statusCode;
+        ultimoErro = 'Erro ${r.statusCode} (modelo $modelo): $detalhe';
+        if (r.statusCode == 404) continue; // tenta o próximo modelo
+        break;
       }
-      final j = jsonDecode(utf8.decode(r.bodyBytes));
-      final resp = j['candidates'][0]['content']['parts'][0]['text'] as String;
-      _historico.add({
-        'role': 'model',
-        'parts': [
-          {'text': resp}
-        ]
-      });
-      return resp.trim();
+      _historico.removeLast();
+      if (ultimoCodigo == 429) {
+        return 'Muitas perguntas seguidas (limite grátis). Espere um minutinho e tente de novo.';
+      }
+      if (ultimoCodigo == 403 ||
+          (ultimoCodigo == 400 && ultimoErro.toLowerCase().contains('key'))) {
+        return 'Problema com a chave do Gemini. Confira na engrenagem ⚙️.\n$ultimoErro';
+      }
+      return ultimoErro;
     } catch (e) {
       if (_historico.isNotEmpty && _historico.last['role'] == 'user') {
         _historico.removeLast();
