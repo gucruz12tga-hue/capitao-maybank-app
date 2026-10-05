@@ -1,24 +1,57 @@
 workflows:
   capitao-android:
-    name: CAPITAO_MAYBANK Android APK
-    max_build_duration: 30
+    name: Capitao Android
     instance_type: mac_mini_m2
+    max_build_duration: 60
     environment:
       flutter: stable
     scripts:
-      - name: Gerar pastas do Android (so se faltarem)
+      - name: Criar projeto Android se faltar
         script: |
           if [ ! -d android ]; then
-            flutter create --platforms=android --project-name capitao_maybank --org com.maybank .
+            flutter create --platforms=android --org com.maybank --project-name capitao_maybank .
           fi
-      - name: Permissoes (internet e microfone)
+      - name: Ajustar permissoes do Android
         script: |
-          MANIFEST=android/app/src/main/AndroidManifest.xml
-          if ! grep -q "RECORD_AUDIO" "$MANIFEST"; then
-            sed -i.bak 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application|' "$MANIFEST"
-            sed -i.bak 's|</manifest>|    <queries>\n        <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>\n        <intent><action android:name="android.speech.RecognitionService"/></intent>\n    </queries>\n</manifest>|' "$MANIFEST"
-          fi
-      - name: Dependencias
+          python3 - <<'PY'
+          import re
+          p = 'android/app/src/main/AndroidManifest.xml'
+          s = open(p, encoding='utf-8').read()
+
+          perms = [
+              'android.permission.INTERNET',
+              'android.permission.RECORD_AUDIO',
+              'android.permission.ACCESS_FINE_LOCATION',
+              'android.permission.ACCESS_COARSE_LOCATION',
+              'com.android.alarm.permission.SET_ALARM',
+          ]
+          add = ''
+          for x in perms:
+              if x not in s:
+                  add += '    <uses-permission android:name="%s"/>\n' % x
+          if add:
+              s = re.sub(r'(<manifest[^>]*>)', lambda m: m.group(1) + '\n' + add, s, count=1)
+
+          intents = (
+              '        <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>\n'
+              '        <intent><action android:name="android.speech.RecognitionService"/></intent>\n'
+              '        <intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent>\n'
+              '        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="https"/></intent>\n'
+              '        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="http"/></intent>\n'
+              '        <intent><action android:name="android.intent.action.DIAL"/><data android:scheme="tel"/></intent>\n'
+              '        <intent><action android:name="android.intent.action.SENDTO"/><data android:scheme="sms"/></intent>\n'
+          )
+          if 'TTS_SERVICE' not in s:
+              if '</queries>' in s:
+                  s = s.replace('</queries>', intents + '    </queries>', 1)
+              else:
+                  s = s.replace('<application', '    <queries>\n' + intents + '    </queries>\n    <application', 1)
+
+          s = re.sub(r'android:label="[^"]*"', 'android:label="CAPITAO MAYBANK"', s, count=1)
+          open(p, 'w', encoding='utf-8').write(s)
+          print(s)
+          PY
+      - name: Baixar dependencias
         script: flutter pub get
       - name: Compilar APK
         script: flutter build apk --release
