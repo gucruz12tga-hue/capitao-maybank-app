@@ -1492,10 +1492,17 @@ class ChatPageState extends State<ChatPage> {
   }
 
   String _trecho(String o, RegExpMatch m, int g) {
+    // O Dart não informa onde um grupo começa, então achamos o texto do grupo
+    // dentro da frase (sem acento e minúscula, mesmo tamanho do original)
+    // e pegamos o mesmo trecho da frase original, mantendo maiúsculas e acentos.
     final fallback = m.group(g) ?? '';
-    final ini = m.start(g);
-    final fim = m.end(g);
-    if (ini < 0 || fim > o.length || ini > fim) return fallback;
+    if (fallback.isEmpty) return fallback;
+    final s = m.input;
+    final ini = s.endsWith(fallback)
+        ? s.length - fallback.length
+        : s.indexOf(fallback);
+    final fim = ini + fallback.length;
+    if (ini < 0 || fim > o.length || s.length != o.length) return fallback;
     return o.substring(ini, fim);
   }
 
