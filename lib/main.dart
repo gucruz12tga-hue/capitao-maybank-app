@@ -16,6 +16,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'ia_avancada.dart';
+
 // ===== tema =====
 class Paleta {
   final String nome;
@@ -2852,6 +2854,7 @@ class FerramentasPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final itens = <Ferr>[
+      Ferr('🧠', 'IA Avançada', 'Raciocínio em etapas, web e agente', () => const IaAvancadaPage()),
       Ferr('📍', 'Localização', 'Onde estou e o que tem perto', () => const LocalPage()),
       Ferr('🌤️', 'Clima', 'Previsão de qualquer cidade', () => const ClimaPage()),
       Ferr('💱', 'Cotações', 'Dólar, euro e bitcoin', () => const CotacoesPage()),
